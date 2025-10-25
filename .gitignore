@@ -1,0 +1,52 @@
+# Environment files
+.env
+.env.local
+.env.production
+
+# Vendor directories
+/vendor/
+/node_modules/
+
+# Logs
+/storage/logs/*.log
+*.log
+
+# Uploads
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+
+# Cache
+/storage/cache/*
+!/storage/cache/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.bak
+*~
+
+# Backup files
+*.sql
+*.sql.gz
+*.backup
+
+# Compiled files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
