@@ -22,7 +22,7 @@ class AIController extends Controller {
         $complexity = $this->input('complexity', 'medium');
         $duration = $this->input('duration');
         
-        $validation = $this->validate($_POST, [
+        $validation = $this->validate($this->input(), [
             'service_category' => 'required'
         ]);
         
@@ -52,7 +52,7 @@ class AIController extends Controller {
         $projectId = $this->input('project_id');
         $requiredSkills = $this->input('required_skills', []);
         
-        $validation = $this->validate($_POST, [
+        $validation = $this->validate($this->input(), [
             'project_id' => 'required'
         ]);
         
@@ -81,7 +81,7 @@ class AIController extends Controller {
         
         $dealId = $this->input('deal_id');
         
-        $validation = $this->validate($_POST, [
+        $validation = $this->validate($this->input(), [
             'deal_id' => 'required'
         ]);
         

@@ -71,7 +71,7 @@ class PaymentController extends Controller {
         $amount = $this->input('amount');
         $paymentMethod = $this->input('payment_method');
         
-        $validation = $this->validate($_POST, [
+        $validation = $this->validate($this->input(), [
             'invoice_id' => 'required',
             'amount' => 'required|numeric',
             'payment_method' => 'required'

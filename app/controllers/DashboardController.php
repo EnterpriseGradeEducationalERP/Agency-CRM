@@ -51,6 +51,8 @@ class DashboardController extends Controller {
         // Recent activities
         $recentProjects = $projectModel->all([], 'created_at DESC', 5);
         $recentInvoices = $invoiceModel->all([], 'created_at DESC', 5);
+        if (!is_array($recentProjects)) { $recentProjects = []; }
+        if (!is_array($recentInvoices)) { $recentInvoices = []; }
         
         $dashboard = [
             'revenue' => $revenue,

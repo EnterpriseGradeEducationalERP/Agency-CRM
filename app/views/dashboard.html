@@ -82,7 +82,8 @@
     </nav>
 
     <div class="container mt-4">
-        <h2 class="mb-4">Welcome back, <span id="userFirstName"></span>! 👋</h2>
+        <h2 class="mb-2">Welcome back, <span id="userFirstName"></span>! 👋</h2>
+        <div class="text-muted mb-4" id="roleLabel"></div>
         
         <div class="row">
             <!-- Statistics Cards -->
@@ -120,11 +121,7 @@
             <div class="col-md-8">
                 <div class="quick-links">
                     <h4 class="mb-4">Quick Links</h4>
-                    <a href="#" class="quick-link-btn">📝 Create New Client</a>
-                    <a href="#" class="quick-link-btn">💼 Add New Deal</a>
-                    <a href="#" class="quick-link-btn">📋 Create Project</a>
-                    <a href="#" class="quick-link-btn">📄 Generate Quote</a>
-                    <a href="#" class="quick-link-btn">💳 Create Invoice</a>
+                    <div id="quickLinks"></div>
                 </div>
             </div>
             
@@ -146,6 +143,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         // Check authentication
         const token = localStorage.getItem('auth_token');
@@ -157,6 +155,8 @@
             // Display user info
             document.getElementById('userName').textContent = user.email || 'User';
             document.getElementById('userFirstName').textContent = user.first_name || 'User';
+            document.getElementById('roleLabel').textContent = (user.role || '').replace('_', ' ').toUpperCase();
+            renderQuickLinks(user.role);
             
             // Load dashboard data
             loadDashboardData();
@@ -170,7 +170,8 @@
                 });
                 const clientsData = await clientsResponse.json();
                 if (clientsData.success) {
-                    document.getElementById('clientCount').textContent = clientsData.data.length;
+                    const totalClients = clientsData.data.total ?? clientsData.data.length ?? 0;
+                    document.getElementById('clientCount').textContent = totalClients;
                 }
 
                 // Load deals
@@ -179,7 +180,8 @@
                 });
                 const dealsData = await dealsResponse.json();
                 if (dealsData.success) {
-                    document.getElementById('dealCount').textContent = dealsData.data.length;
+                    const totalDeals = dealsData.data.total ?? dealsData.data.length ?? 0;
+                    document.getElementById('dealCount').textContent = totalDeals;
                 }
 
                 // Load projects
@@ -188,7 +190,8 @@
                 });
                 const projectsData = await projectsResponse.json();
                 if (projectsData.success) {
-                    document.getElementById('projectCount').textContent = projectsData.data.length;
+                    const totalProjects = projectsData.data.total ?? projectsData.data.length ?? 0;
+                    document.getElementById('projectCount').textContent = totalProjects;
                 }
 
                 // Load tasks
@@ -197,11 +200,63 @@
                 });
                 const tasksData = await tasksResponse.json();
                 if (tasksData.success) {
-                    document.getElementById('taskCount').textContent = tasksData.data.length;
+                    const totalTasks = tasksData.data.total ?? tasksData.data.length ?? 0;
+                    document.getElementById('taskCount').textContent = totalTasks;
+                }
+
+                // Simple chart: tasks by status for PM or Admin
+                if (user.role === 'admin' || user.role === 'project_manager') {
+                    renderTasksChart();
                 }
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
             }
+        }
+
+        async function renderTasksChart() {
+            try {
+                const res = await fetch('/api/v1/tasks?per_page=100', { headers: { 'Authorization': `Bearer ${token}` }});
+                const data = await res.json();
+                if (!data.success) return;
+                const tasks = data.data.data || data.data;
+                const counts = { todo: 0, in_progress: 0, blocked: 0, done: 0 };
+                tasks.forEach(t => { counts[t.status] = (counts[t.status] || 0) + 1; });
+                const canvas = document.createElement('canvas');
+                const container = document.querySelector('.container');
+                const card = document.createElement('div');
+                card.className = 'stat-card mt-3';
+                card.appendChild(canvas);
+                container.appendChild(card);
+                new Chart(canvas.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['To Do', 'In Progress', 'Blocked', 'Done'],
+                        datasets: [{
+                            data: [counts.todo, counts.in_progress, counts.blocked, counts.done],
+                            backgroundColor: ['#6c757d','#0d6efd','#fd7e14','#198754']
+                        }]
+                    },
+                    options: { plugins: { legend: { position: 'bottom' } } }
+                });
+            } catch (e) { /* noop */ }
+        }
+
+        function renderQuickLinks(role) {
+            const container = document.getElementById('quickLinks');
+            const links = [];
+            if (role === 'admin' || role === 'sales_executive' || role === 'project_manager') {
+                links.push({ label: '📝 Create New Client', href: '#' });
+                links.push({ label: '💼 Add New Deal', href: '#' });
+                links.push({ label: '📄 Generate Quote', href: '#' });
+            }
+            if (role === 'admin' || role === 'project_manager') {
+                links.push({ label: '📋 Create Project', href: '#' });
+                links.push({ label: '✅ Create Task', href: '#' });
+            }
+            if (role === 'admin' || role === 'finance_officer') {
+                links.push({ label: '💳 Create Invoice', href: '#' });
+            }
+            container.innerHTML = links.map(l => `<a href="${l.href}" class="quick-link-btn">${l.label}</a>`).join('');
         }
 
         function logout() {
