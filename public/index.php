@@ -60,8 +60,20 @@ foreach ($directories as $dir) {
     }
 }
 
-// Start session
+// Start session with secure cookie params
 if (session_status() === PHP_SESSION_NONE) {
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+               (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ||
+               (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    $cookieParams = session_get_cookie_params();
+    session_set_cookie_params([
+        'lifetime' => (int)($appConfig['session_timeout'] ?? 1800),
+        'path' => $cookieParams['path'] ?? '/',
+        'domain' => $cookieParams['domain'] ?? '',
+        'secure' => $isHttps,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
     session_start();
 }
 
@@ -81,15 +93,20 @@ if (!empty($appConfig['force_https'])) {
 // CORS headers for API requests
 // Determine allowed origin(s)
 $allowedOrigins = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
-$origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
-if ($allowedOrigins === '*' || in_array($origin, array_map('trim', explode(',', $allowedOrigins)))) {
-    header('Access-Control-Allow-Origin: ' . ($allowedOrigins === '*' ? '*' : $origin));
-    header('Vary: Origin');
+if ($allowedOrigins === '*') {
+    header('Access-Control-Allow-Origin: *');
+} else {
+    $originList = array_map('trim', explode(',', $allowedOrigins));
+    if ($origin && in_array($origin, $originList, true)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+        header('Vary: Origin');
+    }
 }
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 header('Access-Control-Max-Age: 600');
 
 // Security headers

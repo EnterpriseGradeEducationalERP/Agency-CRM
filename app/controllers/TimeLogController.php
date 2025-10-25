@@ -72,7 +72,7 @@ class TimeLogController extends Controller {
         $taskId = $this->input('task_id');
         $description = $this->input('description');
         
-        $validation = $this->validate($_POST, [
+        $validation = $this->validate($this->input(), [
             'project_id' => 'required'
         ]);
         

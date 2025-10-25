@@ -29,7 +29,20 @@ class AuthController extends Controller {
         if (!$result) {
             return $this->error('Invalid credentials', 401);
         }
-        
+        // Set auth token cookie (HttpOnly)
+        $remember = (bool)($this->input('remember', false));
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+                   (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ||
+                   (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        setcookie('auth_token', $result['token'], [
+            'expires' => $remember ? time() + (60*60*24*30) : 0,
+            'path' => '/',
+            'domain' => '',
+            'secure' => $isHttps,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+
         return $this->success('Login successful', $result);
     }
     
@@ -137,7 +150,7 @@ class AuthController extends Controller {
         $password = $this->input('password');
         $confirmPassword = $this->input('confirm_password');
         
-        $validation = $this->validate($_POST, [
+        $validation = $this->validate($this->input(), [
             'token' => 'required',
             'password' => 'required|min:8',
             'confirm_password' => 'required'

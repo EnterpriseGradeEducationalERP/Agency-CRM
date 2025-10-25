@@ -32,8 +32,38 @@ class ClientController extends Controller {
             $conditions['source'] = $source;
         }
         
+        // If search provided, run custom paginated search
+        if (!empty($search)) {
+            $offset = ($page - 1) * $perPage;
+            $where = [];
+            $params = [];
+            foreach ($conditions as $key => $value) {
+                $where[] = "$key = :$key";
+                $params[$key] = $value;
+            }
+            if (!empty($where)) {
+                $whereSql = 'WHERE ' . implode(' AND ', $where) . ' AND ';
+            } else {
+                $whereSql = 'WHERE ';
+            }
+            $params['q'] = '%' . $search . '%';
+            $sql = "SELECT * FROM clients {$whereSql} (company_name LIKE :q OR contact_person LIKE :q OR email LIKE :q OR phone LIKE :q) ORDER BY created_at DESC LIMIT {$perPage} OFFSET {$offset}";
+            $data = $this->db->fetchAll($sql, $params);
+            $countSql = "SELECT COUNT(*) as count FROM clients {$whereSql} (company_name LIKE :q OR contact_person LIKE :q OR email LIKE :q OR phone LIKE :q)";
+            $total = $this->db->fetchOne($countSql, $params)['count'] ?? 0;
+            $result = [
+                'data' => $data,
+                'total' => (int)$total,
+                'per_page' => (int)$perPage,
+                'current_page' => (int)$page,
+                'last_page' => (int)ceil($total / $perPage),
+                'from' => $offset + 1,
+                'to' => min($offset + $perPage, (int)$total)
+            ];
+            return $this->success('Clients retrieved', $result);
+        }
+
         $result = $this->clientModel->paginate($page, $perPage, $conditions, 'created_at DESC');
-        
         return $this->success('Clients retrieved', $result);
     }
     

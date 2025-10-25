@@ -47,6 +47,13 @@ class Controller {
     protected function json($data, $statusCode = 200) {
         http_response_code($statusCode);
         header('Content-Type: application/json');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+        $requestId = $_SERVER['HTTP_X_REQUEST_ID'] ?? bin2hex(random_bytes(8));
+        header('X-Request-Id: ' . $requestId);
+        if (is_array($data) && !isset($data['request_id'])) {
+            $data['request_id'] = $requestId;
+        }
         echo json_encode($data);
         exit;
     }
@@ -112,6 +119,19 @@ class Controller {
         }
         
         return empty($errors) ? true : $errors;
+    }
+
+    /**
+     * Get sanitized pagination params (page, perPage)
+     */
+    protected function paginationParams($defaultPerPage = null) {
+        $page = (int) ($this->input('page', 1));
+        $perPage = (int) ($this->input('per_page', $defaultPerPage ?? ($this->config['items_per_page'] ?? 20)));
+        $page = max(1, $page);
+        $max = (int) ($this->config['max_items_per_page'] ?? 100);
+        if ($perPage < 1) { $perPage = 1; }
+        if ($perPage > $max) { $perPage = $max; }
+        return [$page, $perPage];
     }
     
     /**
