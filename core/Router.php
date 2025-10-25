@@ -7,6 +7,7 @@
 class Router {
     private $routes = [];
     private $middlewares = [];
+    private $allowedMethodsForPath = [];
     
     /**
      * Add GET route
@@ -46,6 +47,8 @@ class Router {
             'callback' => $callback,
             'middlewares' => $middlewares
         ];
+        $this->allowedMethodsForPath[$path] = $this->allowedMethodsForPath[$path] ?? [];
+        $this->allowedMethodsForPath[$path][$method] = true;
     }
     
     /**
@@ -73,6 +76,8 @@ class Router {
             $requestUri = '/' . $requestUri;
         }
         
+        $matchedPath = null;
+        $matchedMethods = [];
         foreach ($this->routes as $route) {
             $pattern = $this->convertToRegex($route['path']);
             
@@ -97,9 +102,18 @@ class Router {
                 
                 // Execute callback
                 return $this->executeCallback($route['callback'], $matches);
+            } elseif (preg_match($pattern, $requestUri)) {
+                // Path matched but method not allowed, collect allowed methods
+                $matchedPath = $route['path'];
+                $matchedMethods[$route['method']] = true;
             }
         }
         
+        if (!empty($matchedMethods)) {
+            // 405 Method Not Allowed
+            $this->methodNotAllowed(array_keys($matchedMethods));
+            return;
+        }
         // No route found
         $this->notFound();
     }
@@ -149,7 +163,22 @@ class Router {
      */
     private function notFound() {
         http_response_code(404);
-        echo json_encode(['error' => 'Route not found']);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Route not found']);
+    }
+
+    /**
+     * 405 Method Not Allowed
+     */
+    private function methodNotAllowed($allowedMethods) {
+        http_response_code(405);
+        header('Allow: ' . implode(', ', $allowedMethods));
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'message' => 'Method not allowed',
+            'allowed' => array_values($allowedMethods)
+        ]);
     }
     
     /**

@@ -6,10 +6,6 @@
  * This is the main entry point for the application
  */
 
-// Error reporting
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 // Define path constants
 define('ROOT_PATH', dirname(__DIR__));
 define('APP_PATH', ROOT_PATH . '/app');
@@ -18,9 +14,17 @@ define('CONFIG_PATH', ROOT_PATH . '/config');
 define('PUBLIC_PATH', ROOT_PATH . '/public');
 define('STORAGE_PATH', ROOT_PATH . '/storage');
 
+// Load .env first (if present)
+require_once CORE_PATH . '/Env.php';
+EnvLoader::load(ROOT_PATH . '/.env');
+
 // Load configuration
 require_once CONFIG_PATH . '/constants.php';
 $appConfig = require CONFIG_PATH . '/app.php';
+
+// Error reporting based on environment
+error_reporting(E_ALL);
+ini_set('display_errors', $appConfig['environment'] === 'development' ? '1' : '0');
 
 // Set timezone
 date_default_timezone_set($appConfig['timezone']);
@@ -61,10 +65,42 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Enforce HTTPS if configured
+if (!empty($appConfig['force_https'])) {
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+               (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ||
+               (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    if (!$isHttps) {
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+        header('Location: https://' . $host . $requestUri, true, 301);
+        exit;
+    }
+}
+
 // CORS headers for API requests
-header('Access-Control-Allow-Origin: *');
+// Determine allowed origin(s)
+$allowedOrigins = getenv('CORS_ALLOWED_ORIGINS') ?: '*';
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+
+if ($allowedOrigins === '*' || in_array($origin, array_map('trim', explode(',', $allowedOrigins)))) {
+    header('Access-Control-Allow-Origin: ' . ($allowedOrigins === '*' ? '*' : $origin));
+    header('Vary: Origin');
+}
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Max-Age: 600');
+
+// Security headers
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: SAMEORIGIN');
+header('Referrer-Policy: no-referrer-when-downgrade');
+header('X-XSS-Protection: 1; mode=block');
+if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) {
+    // 6 months HSTS
+    header('Strict-Transport-Security: max-age=15552000; includeSubDomains');
+}
 
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -77,6 +113,8 @@ $router = new Router();
 
 // Global middleware
 $router->middleware('AuthMiddleware');
+// Basic file-backed rate limiting
+$router->middleware('RateLimitMiddleware');
 
 // ============================================================
 // ROUTES DEFINITION
@@ -238,6 +276,7 @@ try {
     
     // Return error response
     http_response_code(500);
+    header('Content-Type: application/json');
     echo json_encode([
         'success' => false,
         'message' => 'Internal server error',

@@ -161,25 +161,20 @@ class Auth {
     /**
      * Generate JWT token
      */
-    private static function generateToken($user) {
-        $header = base64_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
-        
-        $payload = base64_encode(json_encode([
+    public static function generateToken($user) {
+        $header = self::base64url_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
+
+        $payload = self::base64url_encode(json_encode([
             'user_id' => $user['id'],
             'email' => $user['email'],
             'role' => $user['role'],
             'iat' => time(),
             'exp' => time() + self::$config['jwt_expiry']
         ]));
-        
-        $signature = hash_hmac(
-            'sha256',
-            "{$header}.{$payload}",
-            self::$config['jwt_secret'],
-            true
-        );
-        $signature = base64_encode($signature);
-        
+
+        $signature = hash_hmac('sha256', "{$header}.{$payload}", self::$config['jwt_secret'], true);
+        $signature = self::base64url_encode($signature);
+
         return "{$header}.{$payload}.{$signature}";
     }
     
@@ -194,21 +189,15 @@ class Auth {
         }
         
         list($header, $payload, $signature) = $parts;
-        
-        // Verify signature
-        $expectedSignature = base64_encode(hash_hmac(
-            'sha256',
-            "{$header}.{$payload}",
-            self::$config['jwt_secret'],
-            true
-        ));
-        
-        if ($signature !== $expectedSignature) {
+
+        // Verify signature (base64url)
+        $expectedSignature = self::base64url_encode(hash_hmac('sha256', "{$header}.{$payload}", self::$config['jwt_secret'], true));
+        if (!hash_equals($signature, $expectedSignature)) {
             return false;
         }
         
         // Decode payload
-        $data = json_decode(base64_decode($payload), true);
+        $data = json_decode(self::base64url_decode($payload), true);
         
         // Check expiration
         if ($data['exp'] < time()) {
@@ -223,6 +212,19 @@ class Auth {
         );
         
         return $user ?: false;
+    }
+
+    private static function base64url_encode($data) {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+
+    private static function base64url_decode($data) {
+        $remainder = strlen($data) % 4;
+        if ($remainder) {
+            $padlen = 4 - $remainder;
+            $data .= str_repeat('=', $padlen);
+        }
+        return base64_decode(strtr($data, '-_', '+/'));
     }
     
     /**
